@@ -12,15 +12,25 @@ def read_data():
     return df
 
 def find_grid_corners(df):
+    '''
+    find the corners of a square which covers all amenities
+    '''
     top_left = (df['lat'].max(),df['lon'].min())
     bottom_right = (df['lat'].min(),df['lon'].max())
     return list([top_left,bottom_right])
 
 def create_grid(corners):
+    '''
+    create a grid which encompases all amenities in the data
+    the grid is 1km by 1km and is measured in lat,lon
+    '''
+    #fraction of a lat/lon which is = to 1km
     lat_1km = 0.00904371732
     lon_1km = 0.01855700018
+
     lat_range = np.arange(corners[0][0],corners[1][0],-lat_1km)
     lon_range = np.arange(corners[0][1],corners[1][1],lon_1km)
+
     gridxx, gridyy = np.meshgrid(lat_range,lon_range)
     grid_df = pd.DataFrame(np.vstack([gridxx.reshape(-1),gridyy.reshape(-1)])).T
     grid_df.columns = ['lat','lon']
