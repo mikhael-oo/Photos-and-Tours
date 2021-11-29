@@ -1,0 +1,26 @@
+pyspark
+findspark
+exifread
+pykalman
+osmnx
+networkx
+folium
+pandas
+numpy
+sklearn
+glob
+sys
+time
+warnings
+os
+shutil
+seaborn
+matplotlib
+
+# if you get an error message when attempting to install osmnx, try:
+#    sudo apt-get update -y
+#    sudo apt-get install -y libspatialindex-dev
+#    pip3 install Rtree
+
+# and then:
+#    pip3 install osmnx
