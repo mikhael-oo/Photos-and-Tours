@@ -13,6 +13,7 @@ Local area boundary used in this project is available at https://opendata.vancou
 
 ### Set up the environment:
 For a list of all modules/packages needed to run the code you can simply run:
+###
         $ pip3 install -r requirements.txt
 
 ### To run the system, use main.py in the directory Plan_touring with the following arguments:
