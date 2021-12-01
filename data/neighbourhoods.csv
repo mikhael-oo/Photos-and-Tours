@@ -1,12 +1,16 @@
 neighbourhood_group,neighbourhood
-,Arbutus Ridge
 ,Downtown
 ,Downtown Eastside
 ,Dunbar Southlands
-,Fairview
 ,Grandview-Woodland
 ,Hastings-Sunrise
 ,Kensington-Cedar Cottage
+,South Cambie
+,Strathcona
+,Sunset
+,Victoria-Fraserview
+,West End
+,West Point Grey
 ,Kerrisdale
 ,Killarney
 ,Kitsilano
@@ -15,10 +19,6 @@ neighbourhood_group,neighbourhood
 ,Oakridge
 ,Renfrew-Collingwood
 ,Riley Park
+,Arbutus Ridge
+,Fairview
 ,Shaughnessy
-,South Cambie
-,Strathcona
-,Sunset
-,Victoria-Fraserview
-,West End
-,West Point Grey
