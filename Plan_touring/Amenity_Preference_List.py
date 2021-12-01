@@ -24,7 +24,8 @@ amenities = pd.read_json('../osm/amenities-vancouver.json.gz',lines=True)
 amenities = amenities.drop(columns = 'timestamp')
 
 airbnb = pd.read_csv('../data/listings.csv.gz', compression='gzip', header=0, sep=',', quotechar='"')
-airbnb = airbnb[['listing_url','name', 'neighbourhood_cleansed','latitude', 'longitude', 'property_type', 'room_type', 'price', 'minimum_nights']]
+airbnb = airbnb[['listing_url','name', 'neighbourhood_cleansed','latitude', 'longitude', 
+                 'property_type', 'room_type', 'price', 'minimum_nights']]
 airbnb['price'] = airbnb['price'].replace('[\$,]', '', regex=True).astype(float)
 airbnb = airbnb.rename(columns={'latitude': 'lat', 'longitude': 'lon', 'name': 'bnb_name'})
 airbnb.loc[airbnb.price > 1000, 'price'] = airbnb.price / airbnb.minimum_nights
