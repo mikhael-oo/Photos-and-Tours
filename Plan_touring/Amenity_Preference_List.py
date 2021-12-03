@@ -65,6 +65,10 @@ def bens_helper():
     pass
 
 def main_menu():
+    '''
+    call the classify amenities function
+    uncomment the rest of the code in this function when done with it.
+    '''
     #my helper function to print stuff
     # bens_helper()
 
@@ -160,13 +164,14 @@ def get_airbnb(neighbourhoods_of_airbnb):
         
     
     # Choose Airbnb with more restaurants and more bars nearby
-    bnb_amenities = amenities[(amenities['amenity'] == 'restaurant') | (amenities['amenity'] == 'cafe') | 
-                              (amenities['amenity'] == 'fast_food') | (amenities['amenity'] == 'ice_cream') | 
-                              (amenities['amenity'] == 'bistro') | (amenities['amenity'] == 'food_court') | 
-                              (amenities['amenity'] == 'marketplace') | (amenities['amenity'] == 'juice_bar')|
-                              (amenities['amenity'] == 'bar') | (amenities['amenity'] == 'biergarten') | 
-                              (amenities['amenity'] == 'pub') | (amenities['amenity'] == 'nightclub') | 
-                              (amenities['amenity'] == 'lounge')]
+    # bnb_amenities = amenities[(amenities['amenity'] == 'restaurant') | (amenities['amenity'] == 'cafe') | 
+    #                           (amenities['amenity'] == 'fast_food') | (amenities['amenity'] == 'ice_cream') | 
+    #                           (amenities['amenity'] == 'bistro') | (amenities['amenity'] == 'food_court') | 
+    #                           (amenities['amenity'] == 'marketplace') | (amenities['amenity'] == 'juice_bar')|
+    #                           (amenities['amenity'] == 'bar') | (amenities['amenity'] == 'biergarten') | 
+    #                           (amenities['amenity'] == 'pub') | (amenities['amenity'] == 'nightclub') | 
+    #                           (amenities['amenity'] == 'lounge')]
+    bnb_amenities = limit_amenity()
 
     # Calculate the distance between points in extracted airbnb lists based on the maximum value and points in amenities
     combined_df = bnb_amenities.assign(key=1).merge(bnbs.assign(key=1), how='outer', on='key')
@@ -189,6 +194,55 @@ def get_airbnb(neighbourhoods_of_airbnb):
                                                                      "property_type", "neighbourhood_cleansed"])
     print(choosed_final)
     return choosed_final
+
+
+#ask the user to input their 3 most prefered amenities and limit the amenities df to contain only those types
+def limit_amenity():
+    '''
+        ask the user to input their most prefered amenities and limit the amenities df to contain only those types
+    '''
+
+    #this is the dict containing the groupings for each type of amenity
+    amenity_groups  = {'Grocery':['Pharmacy','marketplace','pharmacy'],
+                        'Shopping':['shop|clothes','social_centre'],
+                        'Dine-In':['bar','bistro','cafe','internet_cafe','lounge','pub','restaurant'],
+                        'Fast Food':['fast_food','food_court','ice_cream','juice_bar','vending_machine'],
+                        'Bank & Post':['atm','atm;bank','bank','letter_box','office|financial','post_office','post_box','post_depot'],
+                        'Education':['childcare','college','cram_school','driving_school','language_school','kindergarten','music_school','research_institute','school','university'],
+                        'Transportation':['bicycle_parking','bicycle_rental','bicycle_repair_station','boat_rental',
+                                        'bus_station','car_rental','car_sharing','charging_station','motorcycle_rental','ferry_terminal'],
+                        'Entertainment':['arts_centre','casino','cinema','events_venue','gambling','leisure','nightclub','playground','spa','theatre'],
+                        'Parking':['parking','parking_entrance','parking_space']
+                        }
+
+    #this is a list to change the user input into a key so it can index the dictionary
+    input_to_key = ['None','Grocery','Shopping','Dine-In','Fast Food','Bank & Post','Education','Transportation','Entertainment','Parking']
+
+    #prompt the user for their preferred amenities and take it as input
+    print("Please select the top 3 amenities that are the most important to you when looking for a location for your airbnb.")
+    print("1. Grocery")
+    print("2. Shopping")
+    print("3. Dine-In")
+    print("4. Fast Food")
+    print("5. Bank & Post")
+    print("6. Education")
+    print("7. Transportation")
+    print("8. Entertainment")
+    print("9. Parking")
+    #split the input into a list of ints which can be used to index the groups dictionary using the input_to_key list
+    input_amenities = input("Enter the number corresponding to your preferred amenities. Please select 3 and separate your numbers with a space.")
+    input_list = input_amenities.split()
+    input_list = [int(i) for i in input_list]
+    
+    #limit the amenities df based on what the user selected
+
+    limited_amenities = amenities[amenities['amenity'].isin(amenity_groups[input_to_key[input_list[0]]]) |
+                                   amenities['amenity'].isin(amenity_groups[input_to_key[input_list[1]]]) |
+                                   amenities['amenity'].isin(amenity_groups[input_to_key[input_list[2]]])]
+    
+
+    return limited_amenities
+
 
 def get_amenities(airbnb, method_of_travel):
     
