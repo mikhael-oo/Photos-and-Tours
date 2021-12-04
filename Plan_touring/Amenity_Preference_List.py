@@ -8,25 +8,17 @@ from folium.plugins import HeatMap
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import MiniBatchKMeans
+import webbrowser
 
 #TODO ########################################################################
 '''
-1. Create a function which will classify the 'amenity' column in the air_bnb df which is referenced on line 148. This
-    function should create categories such as grocery, restaraunt, entertainment, etc... into which the more specific tags 
-    can be bucketed into. This can either be done manually by creating lists or it can be done by using some sort of classifier
-    using the tags for the amenity as the input features.
 
-2. Once the above function is done I can then add a section of code to the get_airbnb function which will prompt the user to input their
-    top 3 most desired amenities categorized by the above categories. This preference list will then be used to filter only the amenities 
-    which the user would like similar to how it is done on line 148.
+    1. After adding the markers for each airbnb to the map I noticed that the airbnbs locations seemed to be avoiding hotspots of amenities.
+        I think this may be due to how we have calculated the 'best' airbnbs, the current calculations state that the best bnb is the one with the min
+        sum distance to all the amenities within 100m. This is bias towards the bnbs that dont have any amenities around them which is counter to what we want.
 
-3. Look into how the 'best' airbnb is chosen. Right now it seems to be using the airbnb which has the min sum of distances between it and all the amenities
-    within 100m. This seems like it could select for those airbnbs which are more remote and have less amenities to add to this sum. Maybe a count of the nearby
-    amenities would serve to select for better airbnbs.
+        FIX: To fix the above problem I will change the formula we use to find the 'best' bnb.
 
-4. Additional work could be looking into the folium maps that were generated and adding things such as:
-    - a start and stop point along the route
-    - add popup markers to the folium map where the airbnb we chose is. Reference: https://www.python-graph-gallery.com/312-add-markers-on-folium-map
 
 '''
 ##############################################################################
@@ -52,7 +44,6 @@ amenities = amenities.drop(columns = 'timestamp')
 airbnb = pd.read_csv('../data/listings.csv.gz', compression='gzip', header=0, sep=',', quotechar='"')
 airbnb = airbnb[['listing_url', 'name', 'neighbourhood_cleansed', 'latitude', 'longitude', 
                  'property_type', 'room_type', 'accommodates', 'price', 'minimum_nights', 'maximum_nights']]
-#convert the price to a float
 airbnb['price'] = airbnb['price'].replace('[\$,]', '', regex=True).astype(float)
 airbnb = airbnb.rename(columns={'latitude': 'lat', 'longitude': 'lon', 'name': 'airbnb_name'})
 airbnb.loc[airbnb.price > 1000, 'price'] = airbnb.price / airbnb.minimum_nights
@@ -60,19 +51,7 @@ airbnb.loc[airbnb.price > 1000, 'price'] = airbnb.price / airbnb.minimum_nights
 #read in the neighbourhood data
 neighbor = pd.read_csv('../data/neighbourhoods.csv')
 
-def bens_helper():
-    print((amenities.groupby('amenity').count()).index)
-    pass
-
 def main_menu():
-    '''
-    call the classify amenities function
-    uncomment the rest of the code in this function when done with it.
-    '''
-    #my helper function to print stuff
-    # bens_helper()
-
-
     # Choosing the form of travel from user
     print("\n If you are planning a tour of the city, what is your form of travel? :")
     print("1. Walking")
@@ -80,10 +59,6 @@ def main_menu():
     print("3. Driving")
     method_of_travel = input("Please enter an option number provided:\n")
     
-    # folium supports both Image, Video, GeoJSON and TopoJSON overlays.
-    # From http://python-visualization.github.io/folium/
-    folium_map(airbnb, amenities)
-
     # Choosing the neighbourhood from user interest
     print("Please choose the neighbourhood of Airbnb you want to stay in:")
     print("---You can check the generated heatmap van_heatmap.html to see the neighbourhoods.")
@@ -132,6 +107,7 @@ def exec_menu(method_of_travel, neighbourhoods_of_airbnb):
         amenities_list = get_amenities(airbnb, method_of_travel)
         planed_route = plan_Route(airbnb, amenities_list, method_of_travel)
         planed_route.save('planned_route.html')
+        webbrowser.open('planned_route.html')
 
         print("We have provided you a planned_route.html based on your demands!")
         return
@@ -162,15 +138,7 @@ def get_airbnb(neighbourhoods_of_airbnb):
     # From extracted airbnb lists, change the neighborhood
     bnbs = bnb[bnb['neighbourhood_cleansed']==select_neighbor]
         
-    
-    # Choose Airbnb with more restaurants and more bars nearby
-    # bnb_amenities = amenities[(amenities['amenity'] == 'restaurant') | (amenities['amenity'] == 'cafe') | 
-    #                           (amenities['amenity'] == 'fast_food') | (amenities['amenity'] == 'ice_cream') | 
-    #                           (amenities['amenity'] == 'bistro') | (amenities['amenity'] == 'food_court') | 
-    #                           (amenities['amenity'] == 'marketplace') | (amenities['amenity'] == 'juice_bar')|
-    #                           (amenities['amenity'] == 'bar') | (amenities['amenity'] == 'biergarten') | 
-    #                           (amenities['amenity'] == 'pub') | (amenities['amenity'] == 'nightclub') | 
-    #                           (amenities['amenity'] == 'lounge')]
+    #limit the amenities to the user preferences
     bnb_amenities = limit_amenity()
 
     # Calculate the distance between points in extracted airbnb lists based on the maximum value and points in amenities
@@ -178,21 +146,26 @@ def get_airbnb(neighbourhoods_of_airbnb):
     combined_df = combined_df.drop(columns=["amenity", "tags", "neighbourhood_cleansed"])
     combined = distance(combined_df)
     
-    
+    '''
+        Clarifying Question: are we only taking into account the amenities within 100m of the airbnb? Is that 
+        what the below code is stating? Also are we classifying the "best" bnb as the one with the lowest sum of distances of the locations around it?
+    '''
     tmp = combined.loc[(combined['distance(m)'] <= 100)] # Includes only amenities within 100m
     tmp.rename(columns={'lat_x': 'am_lat', 'lon_x': 'am_lon', 'lat_y': 'bnb_lat', 'lon_y': 'bnb_lon'}, inplace=True)
     tmp = tmp.drop(columns=["am_lat","am_lon","key", 'listing_url','property_type', 'room_type'])
-    print(tmp)
     #choose_bnb sums the distances from all the amenities within its range of 100km and then selects the ones with the smallest summed distance
     #a problem I could see with this would be that the ones with the smallest distances could have the least amount of amenities
     choose_bnb = tmp.groupby("airbnb_name", as_index=False)['distance(m)'].agg('sum')
     choose_bnb = choose_bnb.sort_values(by = 'distance(m)')
-    print(choose_bnb)
+
+    #put the info about the airbnbs back into the choose_bnb df
+    choose_bnb = choose_bnb.merge(airbnb,on = 'airbnb_name',how='left')
+    #call the ben_Map function to pass the top airbnb picks to be marked by the map
+    airbnb_Map(choose_bnb,amenities)
 
     choosed_bnb = choose_bnb.iat[0,0]
     choosed_final = bnbs[bnbs['airbnb_name'] == choosed_bnb].drop(columns=["minimum_nights", "room_type", 
                                                                      "property_type", "neighbourhood_cleansed"])
-    print(choosed_final)
     return choosed_final
 
 
@@ -305,6 +278,69 @@ def distance(combined_df):
     # Lat/lon_y are the coordinates from points
     combined_df=combined_df.sort_values(['distance(m)'])
     return combined_df
+
+def airbnb_Map(top_bnbs,amenities_data):
+    
+    '''
+        create an html map with markers for the top 10 posted airbnbs
+    '''
+    
+    #define starting cords
+    latitude = 49.2823254
+    longitude = -123.1187994
+
+    #cut the top 10 bnbs off the df
+    top_bnbs = top_bnbs.iloc[:100]
+
+    #create the map object
+    bnb_map = folium.Map(location=[latitude, longitude], zoom_start=12)
+
+    #add the markers of the top 10 airbnb choices to the map
+    bnb_map.add_child(airbnb_points(top_bnbs))
+    #add the heatmap of amenities to the map
+    HeatMap(folium_heatmap(amenities_data)).add_to(bnb_map)
+    #add the neighbourhood lines to the map
+    folium.GeoJson(
+        '../data/local-area-boundary.geojson',
+        style_function=lambda feature: {
+            'fillColor': '#ffff00',
+            'color': 'black',
+            'weight': 2,
+            'dashArray': '5, 5'
+        }   
+    ).add_to(bnb_map)
+
+    #add the option to select different layers/styles for the map (just for fun)
+    folium.raster_layers.TileLayer('Open Street Map').add_to(bnb_map)
+    folium.raster_layers.TileLayer('Stamen Terrain').add_to(bnb_map)
+    folium.raster_layers.TileLayer('Stamen Toner').add_to(bnb_map)
+    folium.raster_layers.TileLayer('Stamen Watercolor').add_to(bnb_map)
+    folium.raster_layers.TileLayer('CartoDB Positron').add_to(bnb_map)
+    folium.LayerControl().add_to(bnb_map)
+
+    #save the map to a html file
+    bnb_map.save('bnb_map.html')
+    webbrowser.open('bnb_map.html')
+    pass
+
+def airbnb_points(chosen_bnb):
+
+    print(chosen_bnb)
+    # Instantiate a feature group for the bnbs in the dataframe
+    chosen_group = folium.map.FeatureGroup()
+
+    # Loop through the data and add each to the airbnbs feature group
+    for i in chosen_bnb.index:
+        chosen_group.add_child(
+            folium.Marker(
+                [chosen_bnb['lat'][i], chosen_bnb['lon'][i]],
+                popup= f"<a href={chosen_bnb['listing_url'][i]} target='_blank'>{chosen_bnb['airbnb_name'][i]}</a>",
+                icon=folium.Icon(color="green")
+            )
+        )
+
+    return chosen_group
+
 
 def folium_map(airbnb_data, amenities_data):
     '''
