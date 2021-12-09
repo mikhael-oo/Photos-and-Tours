@@ -10,18 +10,6 @@ import seaborn as sns
 from sklearn.cluster import MiniBatchKMeans
 import webbrowser
 
-#TODO ########################################################################
-'''
-
-    1. After adding the markers for each airbnb to the map I noticed that the airbnbs locations seemed to be avoiding hotspots of amenities.
-        I think this may be due to how we have calculated the 'best' airbnbs, the current calculations state that the best bnb is the one with the min
-        sum distance to all the amenities within 100m. This is bias towards the bnbs that dont have any amenities around them which is counter to what we want.
-
-        FIX: To fix the above problem I will change the formula we use to find the 'best' bnb.
-
-
-'''
-##############################################################################
 
 
 """
@@ -103,7 +91,7 @@ def exec_menu(method_of_travel, neighbourhoods_of_airbnb):
         main_menu()
     else:
         # getting the user preferred airbnb based on room type and maximum price with amenities of most restaurants and bars nearby
-        airbnb = get_airbnb(neighbourhoods_of_airbnb)
+        airbnb = get_airbnb(neighbourhoods_of_airbnb,method_of_travel)
         amenities_list = get_amenities(airbnb, method_of_travel)
         planed_route = plan_Route(airbnb, amenities_list, method_of_travel)
         planed_route.save('planned_route.html')
@@ -112,7 +100,7 @@ def exec_menu(method_of_travel, neighbourhoods_of_airbnb):
         print("We have provided you a planned_route.html based on your demands!")
         return
     
-def get_airbnb(neighbourhoods_of_airbnb):
+def get_airbnb(neighbourhoods_of_airbnb,method_of_travel):
     # neighbourhoods_of_airbnb = user input of provided neighbourhood from neighbourhoods.csv
     # getting a single value at specified row = neighbourhoods_of_airbnb - 1 and column = 1 pair by integer position
     select_neighbor = neighbor.iat[neighbourhoods_of_airbnb - 1, 1]
@@ -146,28 +134,45 @@ def get_airbnb(neighbourhoods_of_airbnb):
     combined_df = combined_df.drop(columns=["amenity", "tags", "neighbourhood_cleansed"])
     combined = distance(combined_df)
     
-    '''
-        Clarifying Question: are we only taking into account the amenities within 100m of the airbnb? Is that 
-        what the below code is stating? Also are we classifying the "best" bnb as the one with the lowest sum of distances of the locations around it?
-    '''
-    tmp = combined.loc[(combined['distance(m)'] <= 100)] # Includes only amenities within 100m
-    tmp.rename(columns={'lat_x': 'am_lat', 'lon_x': 'am_lon', 'lat_y': 'bnb_lat', 'lon_y': 'bnb_lon'}, inplace=True)
-    tmp = tmp.drop(columns=["am_lat","am_lon","key", 'listing_url','property_type', 'room_type'])
-    #choose_bnb sums the distances from all the amenities within its range of 100km and then selects the ones with the smallest summed distance
-    #a problem I could see with this would be that the ones with the smallest distances could have the least amount of amenities
-    choose_bnb = tmp.groupby("airbnb_name", as_index=False)['distance(m)'].agg('sum')
-    choose_bnb = choose_bnb.sort_values(by = 'distance(m)')
-
+    choose_bnb = rank_bnbs(combined,method_of_travel)
+    
     #put the info about the airbnbs back into the choose_bnb df
     choose_bnb = choose_bnb.merge(airbnb,on = 'airbnb_name',how='left')
-    #call the ben_Map function to pass the top airbnb picks to be marked by the map
+    choose_bnb = choose_bnb.drop_duplicates(subset='airbnb_name', keep="first")
+    
+    #call the airbnb_Map function to pass the top airbnb picks to be marked by the map
     airbnb_Map(choose_bnb,amenities)
 
     choosed_bnb = choose_bnb.iat[0,0]
+    
     choosed_final = bnbs[bnbs['airbnb_name'] == choosed_bnb].drop(columns=["minimum_nights", "room_type", 
                                                                      "property_type", "neighbourhood_cleansed"])
     return choosed_final
 
+
+def rank_bnbs(combined, method_of_travel):
+    '''
+        This function ranks the bnbs based on user preference of amenities and method of travel.
+        The returned dataframe is one of all the best airbnbs sorted in order from best to worst.
+    '''
+
+    # Includes only amenities within 500m if users chose to walk        
+    if method_of_travel == 1:
+        tmp = combined.loc[(combined['distance(m)'] <= 500)]   
+    # Includes only amenities within 2km if user chose to bike
+    elif method_of_travel == 2:
+        tmp = combined.loc[(combined['distance(m)'] <= 2000)]
+    # Includes only amenities within 5km  if user chose to drive
+    else:
+        tmp = combined.loc[(combined['distance(m)'] <= 5000)]
+
+    tmp.rename(columns={'lat_x': 'am_lat', 'lon_x': 'am_lon', 'lat_y': 'bnb_lat', 'lon_y': 'bnb_lon'}, inplace=True)
+    tmp = tmp.drop(columns=["am_lat","am_lon","key", 'listing_url','property_type', 'room_type'])
+    choose_bnb = tmp.groupby("airbnb_name", as_index=True).agg(count_col = pd.NamedAgg(column='airbnb_name',aggfunc='count'))
+    choose_bnb = choose_bnb.sort_values(by = 'count_col',ascending = False)
+    
+
+    return choose_bnb
 
 #ask the user to input their 3 most prefered amenities and limit the amenities df to contain only those types
 def limit_amenity():
@@ -290,7 +295,7 @@ def airbnb_Map(top_bnbs,amenities_data):
     longitude = -123.1187994
 
     #cut the top 10 bnbs off the df
-    top_bnbs = top_bnbs.iloc[:100]
+    top_bnbs = top_bnbs.iloc[:15]
 
     #create the map object
     bnb_map = folium.Map(location=[latitude, longitude], zoom_start=12)
@@ -325,7 +330,7 @@ def airbnb_Map(top_bnbs,amenities_data):
 
 def airbnb_points(chosen_bnb):
 
-    print(chosen_bnb)
+    
     # Instantiate a feature group for the bnbs in the dataframe
     chosen_group = folium.map.FeatureGroup()
 
@@ -335,7 +340,7 @@ def airbnb_points(chosen_bnb):
             folium.Marker(
                 [chosen_bnb['lat'][i], chosen_bnb['lon'][i]],
                 popup= f"<a href={chosen_bnb['listing_url'][i]} target='_blank'>{chosen_bnb['airbnb_name'][i]}</a>",
-                icon=folium.Icon(color="green")
+                icon=folium.Icon(color="blue", icon='home')
             )
         )
 
