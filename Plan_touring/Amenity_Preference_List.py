@@ -234,7 +234,7 @@ def folium_map(airbnb_data, amenities_data):
     # Display the map of Vancouver
     vancouver_map
 
-    vancouver_map.save('van_heatmap.html')  
+    vancouver_map.save('van_heatmap.html')
     
 def folium_heatmap(amdata):
     '''Return heat data'''
