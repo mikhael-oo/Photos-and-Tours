@@ -10,10 +10,6 @@ import seaborn as sns
 from sklearn.cluster import MiniBatchKMeans
 import webbrowser
 
-sys.path.insert(0, '../Clean_data')
-import getlocation as gt
-
-
 
 """
 If the user is planning a tour of the city (only Vancouver) by walking/biking/driving, 
