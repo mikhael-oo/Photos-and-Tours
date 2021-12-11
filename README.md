@@ -18,6 +18,10 @@ For a list of all modules/packages needed to run the code you can simply run:
 
 ### To run the system, use main.py in the directory Plan_touring with the following arguments:
         $ python3 main.py ../osm
+
+### By running main.py, the outputs are available in Plan_touring directory:
+        bnb_map.html
+        planned_route.html
     
 ### Contributer :
         Jeongwoon Suh (301313489)
