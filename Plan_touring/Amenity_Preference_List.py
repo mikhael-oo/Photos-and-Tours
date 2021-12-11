@@ -10,6 +10,9 @@ import seaborn as sns
 from sklearn.cluster import MiniBatchKMeans
 import webbrowser
 
+sys.path.insert(0, '../Clean_data')
+import getlocation as gt
+
 
 
 """
@@ -38,6 +41,8 @@ airbnb.loc[airbnb.price > 1000, 'price'] = airbnb.price / airbnb.minimum_nights
 
 #read in the neighbourhood data
 neighbor = pd.read_csv('../data/neighbourhoods.csv')
+
+
 
 def main_menu():
     # Choosing the form of travel from user
