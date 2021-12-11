@@ -7,7 +7,6 @@ import folium
 from folium.plugins import HeatMap
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.cluster import MiniBatchKMeans
 import webbrowser
 
 
@@ -37,7 +36,6 @@ airbnb.loc[airbnb.price > 1000, 'price'] = airbnb.price / airbnb.minimum_nights
 
 #read in the neighbourhood data
 neighbor = pd.read_csv('../data/neighbourhoods.csv')
-
 
 
 def main_menu():
@@ -376,7 +374,7 @@ def folium_map(airbnb_data, amenities_data):
     # Display the map of Vancouver
     vancouver_map
 
-    vancouver_map.save('van_heatmap.html')
+    vancouver_map.save('vancouver_heatmap.html')
     
 def folium_heatmap(amdata):
     '''Return heat data'''
