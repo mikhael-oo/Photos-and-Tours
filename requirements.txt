@@ -16,6 +16,7 @@ os
 shutil
 seaborn
 matplotlib
+exif
 
 # if you get an error message when attempting to install osmnx, try:
 #    sudo apt-get update -y
