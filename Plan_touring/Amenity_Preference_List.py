@@ -8,6 +8,9 @@ from folium.plugins import HeatMap
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import MiniBatchKMeans
+import webbrowser
+
+
 
 """
 If the user is planning a tour of the city (only Vancouver) by walking/biking/driving, 
@@ -20,9 +23,12 @@ Local area boundary used in this project is available at:
 https://opendata.vancouver.ca/explore/dataset/local-area-boundary/export/
 """
 
+#read the amenities data and drop the timestamp col
 amenities = pd.read_json('../osm/amenities-vancouver.json.gz',lines=True)
 amenities = amenities.drop(columns = 'timestamp')
 
+
+#read in the listings data of the different airbnb locations
 airbnb = pd.read_csv('../data/listings.csv.gz', compression='gzip', header=0, sep=',', quotechar='"')
 airbnb = airbnb[['listing_url', 'name', 'neighbourhood_cleansed', 'latitude', 'longitude', 
                  'property_type', 'room_type', 'accommodates', 'price', 'minimum_nights', 'maximum_nights']]
@@ -30,10 +36,10 @@ airbnb['price'] = airbnb['price'].replace('[\$,]', '', regex=True).astype(float)
 airbnb = airbnb.rename(columns={'latitude': 'lat', 'longitude': 'lon', 'name': 'airbnb_name'})
 airbnb.loc[airbnb.price > 1000, 'price'] = airbnb.price / airbnb.minimum_nights
 
+#read in the neighbourhood data
 neighbor = pd.read_csv('../data/neighbourhoods.csv')
 
 def main_menu():
-    
     # Choosing the form of travel from user
     print("\n If you are planning a tour of the city, what is your form of travel? :")
     print("1. Walking")
@@ -41,10 +47,6 @@ def main_menu():
     print("3. Driving")
     method_of_travel = input("Please enter an option number provided:\n")
     
-    # folium supports both Image, Video, GeoJSON and TopoJSON overlays.
-    # From http://python-visualization.github.io/folium/
-    folium_map(airbnb, amenities)
-
     # Choosing the neighbourhood from user interest
     print("Please choose the neighbourhood of Airbnb you want to stay in:")
     print("---You can check the generated heatmap van_heatmap.html to see the neighbourhoods.")
@@ -73,6 +75,8 @@ def main_menu():
     print("23. Shaughnessy")
 
     neighbourhoods_of_airbnb = input("Please enter an option number provided: \n")
+
+    #call the exec menu function and pass it the method of travel and the neighbourhoods
     exec_menu(int(method_of_travel), int(neighbourhoods_of_airbnb))
     return
 
@@ -80,26 +84,30 @@ def deg2rad(deg) :
     ''' Change degree value to radians. (Based on Exercise 3)'''
     return deg * (np.pi/180)
 
-def exec_menu(method_of_travel, neighbourhoods_of_airbnb):    
+def exec_menu(method_of_travel, neighbourhoods_of_airbnb):   
+    #enforce contraints on the inputs the user can give 
     if method_of_travel < 1 or method_of_travel > 3 or neighbourhoods_of_airbnb > 23 or neighbourhoods_of_airbnb < 1:
         print("\nInvalid input. Please input a number from 1 to 23.\n")
         main_menu()
     else:
         # getting the user preferred airbnb based on room type and maximum price with amenities of most restaurants and bars nearby
-        airbnb = get_airbnb(neighbourhoods_of_airbnb)
+        airbnb = get_airbnb(neighbourhoods_of_airbnb,method_of_travel)
         amenities_list = get_amenities(airbnb, method_of_travel)
         planed_route = plan_Route(airbnb, amenities_list, method_of_travel)
         planed_route.save('planned_route.html')
+        webbrowser.open('planned_route.html')
 
         print("We have provided you a planned_route.html based on your demands!")
         return
     
-def get_airbnb(neighbourhoods_of_airbnb):
+def get_airbnb(neighbourhoods_of_airbnb,method_of_travel):
     # neighbourhoods_of_airbnb = user input of provided neighbourhood from neighbourhoods.csv
     # getting a single value at specified row = neighbourhoods_of_airbnb - 1 and column = 1 pair by integer position
     select_neighbor = neighbor.iat[neighbourhoods_of_airbnb - 1, 1]
         
+    #ask for user input on which room type they would like
     roomtype = input("\nPlease enter what room type you are interested in:\n1. Entire home/apt\n2. Private room\n3. Shared room\n")
+    #restrict the airbnb df to only those of the specified roomtype
     if roomtype == "1":
         airbnb_list = airbnb[airbnb['room_type'] == 'Entire home/apt']
     elif roomtype == "2":
@@ -111,37 +119,108 @@ def get_airbnb(neighbourhoods_of_airbnb):
         # Recursion when user typed wrong input
         get_airbnb(neighbourhoods_of_airbnb)
         
+    #take the max price input
     maxPrice = int(input("\nPlease enter maximum price per day of your planning for tour:\n"))
     # Extracting airbnbs less then value of the user input
     bnb = airbnb_list[airbnb_list['price'] < maxPrice]
     # From extracted airbnb lists, change the neighborhood
     bnbs = bnb[bnb['neighbourhood_cleansed']==select_neighbor]
         
-    # Choose Airbnb with more restaurants and more bars nearby
-    bnb_amenities = amenities[(amenities['amenity'] == 'restaurant') | (amenities['amenity'] == 'cafe') | 
-                              (amenities['amenity'] == 'fast_food') | (amenities['amenity'] == 'ice_cream') | 
-                              (amenities['amenity'] == 'bistro') | (amenities['amenity'] == 'food_court') | 
-                              (amenities['amenity'] == 'marketplace') | (amenities['amenity'] == 'juice_bar')|
-                              (amenities['amenity'] == 'bar') | (amenities['amenity'] == 'biergarten') | 
-                              (amenities['amenity'] == 'pub') | (amenities['amenity'] == 'nightclub') | 
-                              (amenities['amenity'] == 'lounge')]
+    #limit the amenities to the user preferences
+    bnb_amenities = limit_amenity()
 
     # Calculate the distance between points in extracted airbnb lists based on the maximum value and points in amenities
     combined_df = bnb_amenities.assign(key=1).merge(bnbs.assign(key=1), how='outer', on='key')
     combined_df = combined_df.drop(columns=["amenity", "tags", "neighbourhood_cleansed"])
     combined = distance(combined_df)
-
-    tmp = combined.loc[(combined['distance(m)'] <= 100)] # Includes only amenities within 100m
-    tmp.rename(columns={'lat_x': 'am_lat', 'lon_x': 'am_lon', 'lat_y': 'bnb_lat', 'lon_y': 'bnb_lon'}, inplace=True)
-    tmp = tmp.drop(columns=["am_lat","am_lon","key", 'listing_url','property_type', 'room_type'])
-    choose_bnb = tmp.groupby("airbnb_name", as_index=False)['distance(m)'].agg('sum')
-    choose_bnb = choose_bnb.sort_values(by = 'distance(m)')
+    
+    choose_bnb = rank_bnbs(combined,method_of_travel)
+    
+    #put the info about the airbnbs back into the choose_bnb df
+    choose_bnb = choose_bnb.merge(airbnb,on = 'airbnb_name',how='left')
+    choose_bnb = choose_bnb.drop_duplicates(subset='airbnb_name', keep="first")
+    
+    #call the airbnb_Map function to pass the top airbnb picks to be marked by the map
+    airbnb_Map(choose_bnb,amenities)
 
     choosed_bnb = choose_bnb.iat[0,0]
+    
     choosed_final = bnbs[bnbs['airbnb_name'] == choosed_bnb].drop(columns=["minimum_nights", "room_type", 
                                                                      "property_type", "neighbourhood_cleansed"])
-
     return choosed_final
+
+
+def rank_bnbs(combined, method_of_travel):
+    '''
+        This function ranks the bnbs based on user preference of amenities and method of travel.
+        The returned dataframe is one of all the best airbnbs sorted in order from best to worst.
+    '''
+
+    # Includes only amenities within 500m if users chose to walk        
+    if method_of_travel == 1:
+        tmp = combined.loc[(combined['distance(m)'] <= 500)]   
+    # Includes only amenities within 2km if user chose to bike
+    elif method_of_travel == 2:
+        tmp = combined.loc[(combined['distance(m)'] <= 2000)]
+    # Includes only amenities within 5km  if user chose to drive
+    else:
+        tmp = combined.loc[(combined['distance(m)'] <= 5000)]
+
+    tmp.rename(columns={'lat_x': 'am_lat', 'lon_x': 'am_lon', 'lat_y': 'bnb_lat', 'lon_y': 'bnb_lon'}, inplace=True)
+    tmp = tmp.drop(columns=["am_lat","am_lon","key", 'listing_url','property_type', 'room_type'])
+    choose_bnb = tmp.groupby("airbnb_name", as_index=True).agg(count_col = pd.NamedAgg(column='airbnb_name',aggfunc='count'))
+    choose_bnb = choose_bnb.sort_values(by = 'count_col',ascending = False)
+    
+
+    return choose_bnb
+
+#ask the user to input their 3 most prefered amenities and limit the amenities df to contain only those types
+def limit_amenity():
+    '''
+        ask the user to input their most prefered amenities and limit the amenities df to contain only those types
+    '''
+
+    #this is the dict containing the groupings for each type of amenity
+    amenity_groups  = {'Grocery':['Pharmacy','marketplace','pharmacy'],
+                        'Shopping':['shop|clothes','social_centre'],
+                        'Dine-In':['bar','bistro','cafe','internet_cafe','lounge','pub','restaurant'],
+                        'Fast Food':['fast_food','food_court','ice_cream','juice_bar','vending_machine'],
+                        'Bank & Post':['atm','atm;bank','bank','letter_box','office|financial','post_office','post_box','post_depot'],
+                        'Education':['childcare','college','cram_school','driving_school','language_school','kindergarten','music_school','research_institute','school','university'],
+                        'Transportation':['bicycle_parking','bicycle_rental','bicycle_repair_station','boat_rental',
+                                        'bus_station','car_rental','car_sharing','charging_station','motorcycle_rental','ferry_terminal'],
+                        'Entertainment':['arts_centre','casino','cinema','events_venue','gambling','leisure','nightclub','playground','spa','theatre'],
+                        'Parking':['parking','parking_entrance','parking_space']
+                        }
+
+    #this is a list to change the user input into a key so it can index the dictionary
+    input_to_key = ['None','Grocery','Shopping','Dine-In','Fast Food','Bank & Post','Education','Transportation','Entertainment','Parking']
+
+    #prompt the user for their preferred amenities and take it as input
+    print("Please select the top 3 amenities that are the most important to you when looking for a location for your airbnb.")
+    print("1. Grocery")
+    print("2. Shopping")
+    print("3. Dine-In")
+    print("4. Fast Food")
+    print("5. Bank & Post")
+    print("6. Education")
+    print("7. Transportation")
+    print("8. Entertainment")
+    print("9. Parking")
+    #split the input into a list of ints which can be used to index the groups dictionary using the input_to_key list
+    input_amenities = input("Enter the number corresponding to your preferred amenities. Please select 3 and separate your numbers with a space.")
+    input_list = input_amenities.split()
+    input_list = [int(i) for i in input_list]
+    
+    #limit the amenities df based on what the user selected
+
+    limited_amenities = amenities[amenities['amenity'].isin(amenity_groups[input_to_key[input_list[0]]]) |
+                                   amenities['amenity'].isin(amenity_groups[input_to_key[input_list[1]]]) |
+                                   amenities['amenity'].isin(amenity_groups[input_to_key[input_list[2]]])]
+    
+
+    return limited_amenities
+
 
 def get_amenities(airbnb, method_of_travel):
     
@@ -159,7 +238,6 @@ def get_amenities(airbnb, method_of_travel):
 
     amenities_df = pd.merge(route_amenities, tourism, how='outer', on=['lat','lon','amenity','name'])
     route_df = amenities_df.assign(key=1).merge(airbnb.assign(key=1), how='outer', on='key')
-
     combined = distance(route_df)
     
     # Includes only amenities within 1.5km if users chose to walk        
@@ -205,6 +283,69 @@ def distance(combined_df):
     # Lat/lon_y are the coordinates from points
     combined_df=combined_df.sort_values(['distance(m)'])
     return combined_df
+
+def airbnb_Map(top_bnbs,amenities_data):
+    
+    '''
+        create an html map with markers for the top 10 posted airbnbs
+    '''
+    
+    #define starting cords
+    latitude = 49.2823254
+    longitude = -123.1187994
+
+    #cut the top 10 bnbs off the df
+    top_bnbs = top_bnbs.iloc[:15]
+
+    #create the map object
+    bnb_map = folium.Map(location=[latitude, longitude], zoom_start=12)
+
+    #add the markers of the top 10 airbnb choices to the map
+    bnb_map.add_child(airbnb_points(top_bnbs))
+    #add the heatmap of amenities to the map
+    HeatMap(folium_heatmap(amenities_data)).add_to(bnb_map)
+    #add the neighbourhood lines to the map
+    folium.GeoJson(
+        '../data/local-area-boundary.geojson',
+        style_function=lambda feature: {
+            'fillColor': '#ffff00',
+            'color': 'black',
+            'weight': 2,
+            'dashArray': '5, 5'
+        }   
+    ).add_to(bnb_map)
+
+    #add the option to select different layers/styles for the map (just for fun)
+    folium.raster_layers.TileLayer('Open Street Map').add_to(bnb_map)
+    folium.raster_layers.TileLayer('Stamen Terrain').add_to(bnb_map)
+    folium.raster_layers.TileLayer('Stamen Toner').add_to(bnb_map)
+    folium.raster_layers.TileLayer('Stamen Watercolor').add_to(bnb_map)
+    folium.raster_layers.TileLayer('CartoDB Positron').add_to(bnb_map)
+    folium.LayerControl().add_to(bnb_map)
+
+    #save the map to a html file
+    bnb_map.save('bnb_map.html')
+    webbrowser.open('bnb_map.html')
+    pass
+
+def airbnb_points(chosen_bnb):
+
+    
+    # Instantiate a feature group for the bnbs in the dataframe
+    chosen_group = folium.map.FeatureGroup()
+
+    # Loop through the data and add each to the airbnbs feature group
+    for i in chosen_bnb.index:
+        chosen_group.add_child(
+            folium.Marker(
+                [chosen_bnb['lat'][i], chosen_bnb['lon'][i]],
+                popup= f"<a href={chosen_bnb['listing_url'][i]} target='_blank'>{chosen_bnb['airbnb_name'][i]}</a>",
+                icon=folium.Icon(color="blue", icon='home')
+            )
+        )
+
+    return chosen_group
+
 
 def folium_map(airbnb_data, amenities_data):
     '''
