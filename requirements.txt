@@ -16,7 +16,7 @@ os
 shutil
 seaborn
 matplotlib
-exif
+exif # will further investigate with this module and apporach using EXIF images
 
 # if you get an error message when attempting to install osmnx, try:
 #    sudo apt-get update -y
